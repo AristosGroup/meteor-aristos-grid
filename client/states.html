@@ -1,0 +1,12 @@
+<template name="gridStates">
+    <aside class="aside bg-white b-l" id="subNav">
+        <div class="wrapper b-b font-bold">Фильтры</div>
+        <ul class="nav">
+            {{#each states}}
+            <li class="load-state b-b"><a href="#{{_id}}">{{name}}</a></li>
+            {{else}}
+            <li>Фильтры отсутствуют</li>
+            {{/each}}
+        </ul>
+    </aside>
+</template>

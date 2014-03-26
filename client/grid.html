@@ -1,16 +1,12 @@
 <template name="baseGrid">
-    <aside>
-        <section class="vbox">
-            <section class="scrollable wrapper w-f" style="overflow-x:scroll">
-                <section class="panel">
-                    <div class="table-responsive">
-                        <div id='jqxWidget'>
-                            <div id="jqxgrid"></div>
-                        </div>
-                    </div>
-                </section>
-            </section>
+    <section class="scrollable wrapper w-f" style="overflow-x:scroll">
+        <section class="panel">
+            <div class="table-responsive">
+                <div id='jqxWidget'>
+                    <div id="jqxgrid"></div>
+                </div>
+            </div>
         </section>
-    </aside>
+    </section>
     {{>gridStates}}
 </template>

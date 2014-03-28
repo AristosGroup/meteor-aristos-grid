@@ -1,5 +1,9 @@
 Router.map(function () {
-    this.route('yandexContentApijson', {
+
+    //this.route('yandex')
+
+    //Вывод коллекции в JSON
+    this.route('exportCollectionToJSON', {
         where: 'server',
         path: '/grid/export.json',
         action: function () {
@@ -9,7 +13,7 @@ Router.map(function () {
 
             //Попытка распознания коллекции
             if(!this.params.collection) throw new Error('Не передана коллекция');
-            collection = AristosUtils.getCollection(this.params.collection);
+            var collection = AristosUtils.getCollection(this.params.collection);
 
             var limit = parseInt(this.params.pagesize) || 1000,
                 page = parseInt(this.params.pagenum) || 0,

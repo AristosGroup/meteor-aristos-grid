@@ -16,17 +16,6 @@ Router.map(function () {
 
             var xlsx = Meteor.require('excel-export');
 
-            /*
-            //Старый режим - по ID
-            if(!this.request.body.ids) {
-                //TODO Убрать тестовые ID
-                //throw new Error('Не переданы ID моделей');
-                this.request.body.ids = [10409554, 7320732];
-            }
-            var modelIds = this.request.body.ids;
-            var data = collection.find({modelId: {$in: modelIds}}, {reactive: false});
-            */
-
             //Применяем основной фильтр
             var filters = this.request.body.filters || this.params.filters;
             if(filters) {
@@ -56,26 +45,140 @@ Router.map(function () {
             var data = collection.find(filters, options);
             console.log('Data count: ', data.count());
 
+            //Массив с хуками - доп функциями для обработки данных
             var parseHooks = [];
+
+            /**
+             * Парсер характеристик моделей в Яндекс
+             */
+            var hookYandexModelParams = function(dataRow, row, rows, colsConfig, cols) {
+                if(dataRow.details) {
+                    dataRow.details.forEach(function(detailsGroup, detailsGroupKey) {
+                        if(detailsGroup.params) {
+                            detailsGroup.params.forEach(function(details, detailsKey){
+                                if(!colsConfig.hasOwnProperty(details.name)) {
+                                    colsConfig[details.name] = {
+                                        map: 'details['+detailsGroupKey+'].params['+detailsKey+'].value',
+                                        paramNameMap: 'details['+detailsGroupKey+'].params['+detailsKey+'].name'
+                                    };
+                                    cols.push(_.defaults(colsConfig[details.name], {
+                                        caption: details.name,
+                                        type: 'string'
+                                    }));
+                                    row.push(details.value);
+                                }
+                            });
+                        }
+                    });
+                }
+            };
+
+            /**
+             * Парсер товарных предложений Яндекс
+             */
+            var offersColsSettedUp = false;
+            var hookYandexOffers = function(dataRow, row, rows, colsConfig, cols) {
+                var originRow = _.clone(row);
+                if(dataRow.offers && dataRow.offers.length) {
+                    if(!offersColsSettedUp) {
+                        cols.push({
+                            caption: 'Цена магазина',
+                            type: 'number'
+                        });
+                        cols.push({
+                            caption: 'Название магазина',
+                            type: 'string'
+                        });
+                        cols.push({
+                            caption: 'Рейтинг магазина',
+                            type: 'number'
+                        });
+                        cols.push({
+                            caption: 'Отзывов',
+                            type: 'number'
+                        });
+                        cols.push({
+                            caption: 'Стоимость доставки',
+                            type: 'number'
+                        });
+                        offersColsSettedUp = true;
+                    }
+                    for(var i = 0; i < dataRow.offers.length; i++) {
+                        var offer = dataRow.offers[i].offer;
+                        if(offer) {
+                            console.log('Generate new row: ', '['+i+'/'+dataRow.offers.length+']');
+                            row = _.clone(originRow);
+                            row.push(AristosUtils.getValueForPosition('price.value', offer, ''));
+                            row.push(AristosUtils.getValueForPosition('shopInfo.name', offer, ''));
+                            row.push(AristosUtils.getValueForPosition('shopInfo.rating', offer, 0));
+                            row.push(AristosUtils.getValueForPosition('shopInfo.gradeTotal', offer, 0));
+                            row.push(AristosUtils.getValueForPosition('delivery.price.value', offer, 0));
+                            console.log(row);
+                            if(!(i + 1 == dataRow.offers.length)) {
+                                console.log('Row pushed');
+                                rows.push(row);
+                            }
+                        }
+                    }
+                }
+                return row;
+            };
+
+            var colsConfig = null;
             switch (task) {
-                case 'models':
-                    var colsConfig = {
+                case 'offers':
+                    colsConfig = {
+                        'Название': {
+                            map: 'main.model.name',
+                            width: 25
+                        },
                         'SKU': {
+                            map: 'searchString'
+                        },
+                        'Наша цена': {
+                            map: 'phillips_price',
+                            type: 'number'
+                        },
+                        'Средняя цена': {
+                            map: 'main.model.prices.avg',
+                            type: 'number'
+                        }
+                    };
+                    parseHooks.push(hookYandexOffers);
+                    break;
+                case 'models':
+                    colsConfig = {
+                        'ID': {
                             map: 'modelId',
                             type: 'number'
                         },
                         'Категория': {
                             map: 'category.name',
-                            width: 25,
+                            width: 30,
                             beforeCellWrite:function(row, cellData){
                                 return cellData.toUpperCase();
                             }
+                        },
+                        'Название': {
+                            map: 'main.model.name',
+                            width: 25
+                        },
+                        'Производитель': {
+                            map: 'main.model.vendor'
+                        },
+                        'Рейтинг': {
+                            map: 'main.model.rating',
+                            type: 'number'
+                        },
+                        'Предложений': {
+                            map: 'main.model.offersCount',
+                            type: 'nubmer'
                         }
                     };
-
+                    parseHooks.push(hookYandexModelParams);
                     break;
                 default:
-                    //TODO Реализовать разбор
+                    //TODO Реализовать автоматический разбор коллекции
                     throw new Error('Необходимо указать задачу. Авто-разбор модели не реализован');
                     //По-умолчанию самостоятельно определяем конфигурацию полей для экспорта
                     data.forEach(function(row){
@@ -99,203 +202,38 @@ Router.map(function () {
             });
 
             data.forEach(function (dataRow) {
-                var row = [];
+                var self = this,
+                    row = [];
+                //Заполняем строки исходя из конфигурации колонок
                 _.each(colsConfig, function(colConfig, colName) {
-                    row.push(AristosUtils.getValueForPosition(colConfig.map, dataRow));
+                    if(colConfig.hasOwnProperty('paramNameMap') && AristosUtils.getValueForPosition(colConfig.paramNameMap, dataRow) != colName) {
+                        //Если в конфигурации присутствует параметр paramNameMap, значит требуется проверить соответствие названия колонки
+                        //Если название колонок не совпадает, пишем пустое значение
+                        row.push('');
+                    } else {
+                        row.push(AristosUtils.getValueForPosition(colConfig.map, dataRow, ''));
+                    }
                 });
 
-                if(dataRow.details) {
-                    dataRow.details.forEach(function(detailsGroup, detailsGroupKey) {
-                        if(detailsGroup.params) {
-                            detailsGroup.params.forEach(function(details, detailsKey){
-                                if(!colsConfig.hasOwnProperty(details.name)) {
-                                    colsConfig[details.name] = {
-                                        map: 'model.details['+detailsGroupKey+'].params['+detailsKey+'].value'
-                                    };
-                                    cols.push(_.defaults(colsConfig[details.name], {
-                                        caption: details.name,
-                                        type: 'string'
-                                    }));
-                                    row.push(details.value);
-                                }
-                            });
-                        }
-                    });
-                }
-                rows.push(row);
-            });
-
-
-            /*
-
-            var cols = [];
-            var unsortedrows = [];
-            var colsConfig = {
-                category: {
-                    colName: function () {
-                        return 'Category';
-                    },
-                    value: function (row) {
-                        if(row.category)
-                            return row.category.name;
-
-                        return false;
-                    }
-                },
-
-                vendor: {
-                    colName: function () {
-                        return 'Vendor';
-                    },
-                    value: function (row) {
-                        return row.main.model.vendor;
-                    }
-                },
-
-                modelId: {
-                    colName: function () {
-                        return 'ModelId';
-                    },
-                    value: function (row) {
-                        return row.modelId;
-                    }
-                },
-
-
-                name: {
-                    colName: function () {
-                        return 'Name';
-                    },
-                    value: function (row) {
-                        return row.main.model.name;
-                    }
-                },
-
-                description: {
-                    colName: function () {
-                        return 'Description';
-                    },
-                    value: function (row) {
-                        return row.main.model.description;
-                    }
-                },
-
-                rating: {
-                    colName: function () {
-                        return 'Rating';
-                    },
-                    value: function (row) {
-                        return row.main.model.rating;
-                    },
-                    type: 'number'
-                },
-
-
-                minPrice: {
-                    colName: function () {
-                        return 'minPrice';
-                    },
-                    value: function (row) {
-
-                        if(row.main.model.prices)
-                            return row.main.model.prices.min;
-                        else
-                            return null;
-                    },
-                    type: 'number'
-                },
-
-
-                maxPrice: {
-                    colName: function () {
-                        return 'maxPrice';
-                    },
-                    value: function (row) {
-                        if(row.main.model.prices)
-                            return row.main.model.prices.max;
-                        else
-                            return null;
-                    },
-                    type: 'number'
-                },
-
-                avgPrice: {
-                    colName: function () {
-                        return 'avgPrice';
-                    },
-                    value: function (row) {
-                        if(row.main.model.prices)
-                            return row.main.model.prices.avg;
-                        else
-                            return null;
-                    },
-                    type: 'number'
-                },
-
-
-                mainPhoto: {
-                    colName: function () {
-                        return 'mainPhoto';
-                    },
-                    value: function (row) {
-                        return row.main.model.mainPhoto.url;
-                    }
-                },
-
-                link: {
-                    colName: function () {
-                        return 'link';
-                    },
-                    value: function (row) {
-                        return row.main.model.link;
-                    }
-                },
-            };
-
-
-            _.each(colsConfig, function(conf, index) {
-                cols.push( {
-                    caption: index,
-                    type: _.isUndefined(conf.type) ? 'string': conf.type
+                //Применяем дополнительные хуки для обработки строки
+                _.each(parseHooks, function(hookFunction){
+                    if(typeof hookFunction == 'function') row = hookFunction.call(self, dataRow, row, rows, colsConfig, cols);
                 });
-            });
-
-            data.forEach(function (model) {
-                var row = {};
-                _.each(colsConfig, function(col, index) {
-                    if(col.value(model))
-                        row[index] = col.value(model);
-                    else
-                        row[index] = null;
-                });
-
-
-                if(model.details) {
-                    model.details.forEach(function(detail) {
-                        cols.push({caption:detail.name, type:'string'});
-                        row[detail.name] =detail.value;
-
-                    });
-                }
-
-                unsortedrows.push(row);
-            });
-
-
-            var rows = [];
-            unsortedrows.forEach(function (model) {
-                var row = [];
-                _.each(cols, function(col, index) {
-                    if( model[col.caption])
-                        row[index] = model[col.caption];
-                    else
-                        row[index] = null;
-                });
+                console.log(row);
 
                 rows.push(row);
             });
 
-            */
+            //Выравниваем кол-во столбцов в каждом ряду
+            var colsLength = cols.length;
+            _.each(rows, function(row, key){
+                if(row.length < colsLength) {
+                    while(row.length < colsLength) {
+                        row.push('');
+                    }
+                    rows[key] = row;
+                }
+            });
 
             var conf = {};
 

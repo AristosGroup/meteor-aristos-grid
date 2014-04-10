@@ -5,247 +5,255 @@ Router.map(function () {
         where: 'server',
         path: '/grid/export/:collection?/:task?',
         action: function () {
+
             var self = this;
-            console.log('Request export xls. GET: ', this.params, ', POST: ', this.request.body);
+            try {
 
-            if(!this.params.collection) throw new Error('Не передана коллекция');
-            var collectionName = this.params.collection,
-                collection = AristosUtils.getCollection(collectionName);
+                console.log('Request export xls. GET: ', this.params, ', POST: ', this.request.body);
 
-            var task = this.params.task;
+                if(!this.params.collection) throw new Error('Не передана коллекция');
+                var collectionName = this.params.collection,
+                    collection = AristosUtils.getCollection(collectionName);
 
-            var xlsx = Meteor.require('excel-export');
+                var task = this.params.task;
 
-            //Применяем основной фильтр
-            var filters = this.request.body.filters || this.params.filters;
-            if(filters) {
-                try {
-                    filters = AristosUtils.JSON.parse(filters);
-                } catch(e) {
-                    console.log('Ошибка обработки фильтра: ', e);
+                var xlsx = Meteor.require('excel-export');
+
+                //Применяем основной фильтр
+                var filters = this.request.body.filters || this.params.filters;
+                if(filters) {
+                    try {
+                        filters = AristosUtils.JSON.parse(filters);
+                    } catch(e) {
+                        console.log('Ошибка обработки фильтра: ', e);
+                        filters = {};
+                    }
+                } else {
                     filters = {};
                 }
-            } else {
-                filters = {};
-            }
-            var options = this.request.body.options || this.params.options;
-            if(options) {
-                try {
-                    options = JSON.parse(options);
-                } catch(e) {
-                    console.log('Ошибка обработки фильтра: ', e);
+                var options = this.request.body.options || this.params.options;
+                if(options) {
+                    try {
+                        options = JSON.parse(options);
+                    } catch(e) {
+                        console.log('Ошибка обработки фильтра: ', e);
+                        options = {};
+                    }
+                } else {
                     options = {};
                 }
-            } else {
-                options = {};
-            }
 
-            console.log('Экспортируем коллекцию ' + collectionName + ' с фильтром ', filters,  ' и параметрами ', options);
+                console.log('Экспортируем коллекцию ' + collectionName + ' с фильтром ', filters,  ' и параметрами ', options);
 
-            var data = collection.find(filters, options);
-            console.log('Data count: ', data.count());
+                var data = collection.find(filters, options);
+                console.log('Data count: ', data.count());
 
-            //Массив с хуками - доп функциями для обработки данных
-            var parseHooks = [];
+                //Массив с хуками - доп функциями для обработки данных
+                var parseHooks = [];
 
-            /**
-             * Парсер характеристик моделей в Яндекс
-             */
-            var hookYandexModelParams = function(dataRow, row, rows, colsConfig, cols) {
-                if(dataRow.details) {
-                    dataRow.details.forEach(function(detailsGroup, detailsGroupKey) {
-                        if(detailsGroup.params) {
-                            detailsGroup.params.forEach(function(details, detailsKey){
-                                if(!colsConfig.hasOwnProperty(details.name)) {
-                                    colsConfig[details.name] = {
-                                        map: 'details['+detailsGroupKey+'].params['+detailsKey+'].value',
-                                        paramNameMap: 'details['+detailsGroupKey+'].params['+detailsKey+'].name'
-                                    };
-                                    cols.push(_.defaults(colsConfig[details.name], {
-                                        caption: details.name,
-                                        type: 'string'
-                                    }));
-                                    row.push(details.value);
-                                }
+                /**
+                 * Парсер характеристик моделей в Яндекс
+                 */
+                var hookYandexModelParams = function(dataRow, row, rows, colsConfig, cols) {
+                    if(dataRow.details) {
+                        dataRow.details.forEach(function(detailsGroup, detailsGroupKey) {
+                            if(detailsGroup.params) {
+                                detailsGroup.params.forEach(function(details, detailsKey){
+                                    if(!colsConfig.hasOwnProperty(details.name)) {
+                                        colsConfig[details.name] = {
+                                            map: 'details['+detailsGroupKey+'].params['+detailsKey+'].value',
+                                            paramNameMap: 'details['+detailsGroupKey+'].params['+detailsKey+'].name'
+                                        };
+                                        cols.push(_.defaults(colsConfig[details.name], {
+                                            caption: details.name,
+                                            type: 'string'
+                                        }));
+                                        row.push(details.value);
+                                    }
+                                });
+                            }
+                        });
+                    }
+                    return row;
+                };
+
+                /**
+                 * Парсер товарных предложений Яндекс
+                 */
+                var offersColsSettedUp = false;
+                var hookYandexOffers = function(dataRow, row, rows, colsConfig, cols) {
+                    var originRow = _.clone(row);
+                    if(typeof dataRow.offers != 'undefined' && dataRow.offers.length) {
+                        if(!offersColsSettedUp) {
+                            cols.push({
+                                caption: 'Цена магазина',
+                                type: 'number'
                             });
+                            cols.push({
+                                caption: 'Название магазина',
+                                type: 'string'
+                            });
+                            cols.push({
+                                caption: 'Рейтинг магазина',
+                                type: 'number'
+                            });
+                            cols.push({
+                                caption: 'Отзывов',
+                                type: 'number'
+                            });
+                            cols.push({
+                                caption: 'Стоимость доставки',
+                                type: 'number'
+                            });
+                            offersColsSettedUp = true;
                         }
-                    });
-                }
-            };
-
-            /**
-             * Парсер товарных предложений Яндекс
-             */
-            var offersColsSettedUp = false;
-            var hookYandexOffers = function(dataRow, row, rows, colsConfig, cols) {
-                var originRow = _.clone(row);
-                if(dataRow.offers && dataRow.offers.length) {
-                    if(!offersColsSettedUp) {
-                        cols.push({
-                            caption: 'Цена магазина',
-                            type: 'number'
-                        });
-                        cols.push({
-                            caption: 'Название магазина',
-                            type: 'string'
-                        });
-                        cols.push({
-                            caption: 'Рейтинг магазина',
-                            type: 'number'
-                        });
-                        cols.push({
-                            caption: 'Отзывов',
-                            type: 'number'
-                        });
-                        cols.push({
-                            caption: 'Стоимость доставки',
-                            type: 'number'
-                        });
-                        offersColsSettedUp = true;
-                    }
-                    for(var i = 0; i < dataRow.offers.length; i++) {
-                        var offer = dataRow.offers[i].offer;
-                        if(offer) {
-                            console.log('Generate new row: ', '['+i+'/'+dataRow.offers.length+']');
-                            row = _.clone(originRow);
-                            row.push(AristosUtils.getValueForPosition('price.value', offer, ''));
-                            row.push(AristosUtils.getValueForPosition('shopInfo.name', offer, ''));
-                            row.push(AristosUtils.getValueForPosition('shopInfo.rating', offer, 0));
-                            row.push(AristosUtils.getValueForPosition('shopInfo.gradeTotal', offer, 0));
-                            row.push(AristosUtils.getValueForPosition('delivery.price.value', offer, 0));
-                            console.log(row);
-                            if(!(i + 1 == dataRow.offers.length)) {
-                                console.log('Row pushed');
-                                rows.push(row);
+                        for(var i = 0; i < dataRow.offers.length; i++) {
+                            var offer = dataRow.offers[i].offer;
+                            if(offer) {
+                                console.log('Generate new row: ', '['+i+'/'+dataRow.offers.length+']');
+                                row = _.clone(originRow);
+                                row.push(AristosUtils.getValueForPosition('price.value', offer, ''));
+                                row.push(AristosUtils.getValueForPosition('shopInfo.name', offer, ''));
+                                row.push(AristosUtils.getValueForPosition('shopInfo.rating', offer, 0));
+                                row.push(AristosUtils.getValueForPosition('shopInfo.gradeTotal', offer, 0));
+                                row.push(AristosUtils.getValueForPosition('delivery.price.value', offer, 0));
+                                console.log(row);
+                                if(!(i + 1 == dataRow.offers.length)) {
+                                    console.log('Row pushed');
+                                    rows.push(row);
+                                }
                             }
                         }
                     }
-                }
-                return row;
-            };
+                    return row;
+                };
 
-            var colsConfig = null;
-            switch (task) {
-                case 'offers':
-                    colsConfig = {
-                        'Название': {
-                            map: 'main.model.name',
-                            width: 25
-                        },
-                        'SKU': {
-                            map: 'searchString'
-                        },
-                        'Наша цена': {
-                            map: 'phillips_price',
-                            type: 'number'
-                        },
-                        'Средняя цена': {
-                            map: 'main.model.prices.avg',
-                            type: 'number'
-                        }
-                    };
-                    parseHooks.push(hookYandexOffers);
-                    break;
-                case 'models':
-                    colsConfig = {
-                        'ID': {
-                            map: 'modelId',
-                            type: 'number'
-                        },
-                        'Категория': {
-                            map: 'category.name',
-                            width: 30,
-                            beforeCellWrite:function(row, cellData){
-                                return cellData.toUpperCase();
+                var colsConfig = null;
+                switch (task) {
+                    case 'offers':
+                        colsConfig = {
+                            'Название': {
+                                map: 'main.model.name',
+                                width: 25
+                            },
+                            'SKU': {
+                                map: 'searchString'
+                            },
+                            'Наша цена': {
+                                map: 'phillips_price',
+                                type: 'number'
+                            },
+                            'Средняя цена': {
+                                map: 'main.model.prices.avg',
+                                type: 'number'
                             }
-                        },
-                        'Название': {
-                            map: 'main.model.name',
-                            width: 25
-                        },
-                        'Производитель': {
-                            map: 'main.model.vendor'
-                        },
-                        'Рейтинг': {
-                            map: 'main.model.rating',
-                            type: 'number'
-                        },
-                        'Предложений': {
-                            map: 'main.model.offersCount',
-                            type: 'nubmer'
-                        }
-                    };
-                    parseHooks.push(hookYandexModelParams);
-                    break;
-                default:
-                    //TODO Реализовать автоматический разбор коллекции
-                    throw new Error('Необходимо указать задачу. Авто-разбор модели не реализован');
-                    //По-умолчанию самостоятельно определяем конфигурацию полей для экспорта
-                    data.forEach(function(row){
-                        //Разбор объекта
-                        _.each(row, function(){});
-                    });
-            }
+                        };
+                        parseHooks.push(hookYandexOffers);
+                        break;
+                    case 'models':
+                        colsConfig = {
+                            'ID': {
+                                map: 'modelId',
+                                type: 'number'
+                            },
+                            'Категория': {
+                                map: 'category.name',
+                                width: 30,
+                                beforeCellWrite:function(row, cellData){
+                                    return cellData.toUpperCase();
+                                }
+                            },
+                            'Название': {
+                                map: 'main.model.name',
+                                width: 25
+                            },
+                            'Производитель': {
+                                map: 'main.model.vendor'
+                            },
+                            'Рейтинг': {
+                                map: 'main.model.rating',
+                                type: 'number'
+                            },
+                            'Предложений': {
+                                map: 'main.model.offersCount',
+                                type: 'nubmer'
+                            }
+                        };
+                        parseHooks.push(hookYandexModelParams);
+                        break;
+                    default:
+                        //TODO Реализовать автоматический разбор коллекции
+                        throw new Error('Необходимо указать задачу. Авто-разбор модели не реализован');
+                        //По-умолчанию самостоятельно определяем конфигурацию полей для экспорта
+                        data.forEach(function(row){
+                            //Разбор объекта
+                            _.each(row, function(){});
+                        });
+                }
 
 
-            var cols = [],
-                rows = [];
+                var cols = [],
+                    rows = [];
 
-            if(!colsConfig) throw new Error('Не удалось получить конфигурацию таблицы');
+                if(!colsConfig) throw new Error('Не удалось получить конфигурацию таблицы');
 
-            //Конфигурация колонок на основании общей конфигурации
-            _.each(colsConfig, function(colConfig, colName) {
-                cols.push(_.defaults(colConfig, {
-                    caption: colName,
-                    type: 'string'
-                }));
-            });
-
-            data.forEach(function (dataRow) {
-                var self = this,
-                    row = [];
-                //Заполняем строки исходя из конфигурации колонок
+                //Конфигурация колонок на основании общей конфигурации
                 _.each(colsConfig, function(colConfig, colName) {
-                    if(colConfig.hasOwnProperty('paramNameMap') && AristosUtils.getValueForPosition(colConfig.paramNameMap, dataRow) != colName) {
-                        //Если в конфигурации присутствует параметр paramNameMap, значит требуется проверить соответствие названия колонки
-                        //Если название колонок не совпадает, пишем пустое значение
-                        row.push('');
-                    } else {
-                        row.push(AristosUtils.getValueForPosition(colConfig.map, dataRow, ''));
+                    cols.push(_.defaults(colConfig, {
+                        caption: colName,
+                        type: 'string'
+                    }));
+                });
+
+                data.forEach(function (dataRow) {
+                    var self = this,
+                        row = [];
+                    //Заполняем строки исходя из конфигурации колонок
+                    _.each(colsConfig, function(colConfig, colName) {
+                        if(colConfig.hasOwnProperty('paramNameMap') && AristosUtils.getValueForPosition(colConfig.paramNameMap, dataRow) != colName) {
+                            //Если в конфигурации присутствует параметр paramNameMap, значит требуется проверить соответствие названия колонки
+                            //Если название колонок не совпадает, пишем пустое значение
+                            row.push('');
+                        } else {
+                            row.push(AristosUtils.getValueForPosition(colConfig.map, dataRow, ''));
+                        }
+                    });
+
+                    //Применяем дополнительные хуки для обработки строки
+                    _.each(parseHooks, function(hookFunction){
+                        if(typeof hookFunction == 'function') row = hookFunction.call(self, dataRow, row, rows, colsConfig, cols);
+                    });
+
+                    rows.push(row);
+                });
+
+                //Выравниваем кол-во столбцов в каждом ряду
+                var colsLength = cols.length;
+                _.each(rows, function(row, key){
+                    if(row.length < colsLength) {
+                        while(row.length < colsLength) {
+                            row.push('');
+                        }
+                        rows[key] = row;
                     }
                 });
 
-                //Применяем дополнительные хуки для обработки строки
-                _.each(parseHooks, function(hookFunction){
-                    if(typeof hookFunction == 'function') row = hookFunction.call(self, dataRow, row, rows, colsConfig, cols);
+                var conf = {};
+
+                conf.cols = cols;
+                conf.rows = rows;
+                var result = xlsx.execute(conf);
+
+                this.response.writeHead(200, {
+                    'Content-Type': 'application/vnd.openxmlformats',
+                    'Content-Disposition': 'attachment; filename="export_' + collectionName.toLowerCase() + '.xlsx"'
                 });
-                console.log(row);
+                this.response.end(result, 'binary');
 
-                rows.push(row);
-            });
-
-            //Выравниваем кол-во столбцов в каждом ряду
-            var colsLength = cols.length;
-            _.each(rows, function(row, key){
-                if(row.length < colsLength) {
-                    while(row.length < colsLength) {
-                        row.push('');
-                    }
-                    rows[key] = row;
-                }
-            });
-
-            var conf = {};
-
-            conf.cols = cols;
-            conf.rows = rows;
-            var result = xlsx.execute(conf);
-
-            this.response.writeHead(200, {
-                'Content-Type': 'application/vnd.openxmlformats',
-                'Content-Disposition': 'attachment; filename="export_' + collectionName.toLowerCase() + '.xlsx"'
-            });
-            this.response.end(result, 'binary');
+            } catch(e) {
+                console.log(e.stack);
+                this.response.end('<script>alert("Ошибка выполнения: '+e.message+'");</script>');
+            }
         }
     });
 });

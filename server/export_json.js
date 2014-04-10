@@ -23,7 +23,7 @@ Router.map(function () {
             var filter = {},
                 options = {};
             if(this.params.searchQuery && this.params.searchQuery != '') {
-                filter['main.model.name'] = new RegExp(this.params.searchQuery, 'i');
+                filter['searchString'] = new RegExp(this.params.searchQuery, 'i');
             }
             if(this.params.sortdatafield && this.params.sortdatafield != '') {
                 this.params.sortdatafield = this.params.sortdatafield.replace(new RegExp('>', 'g'), '.');
@@ -94,6 +94,7 @@ Router.map(function () {
             //Применяем основной фильтр
             if(this.params.filters && this.params.filters != '') {
                 try {
+                    this.params.filters = this.params.filters.replace('+', ' ');
                     var mainFilter = AristosUtils.JSON.parse(this.params.filters);
                     /*if(mainFilter.hasOwnProperty('$and') && typeof mainFilter['$and'] == 'object') {
                         _.each(mainFilter['$and'], function(val, key) {

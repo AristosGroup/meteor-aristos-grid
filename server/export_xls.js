@@ -136,7 +136,7 @@ Router.map(function () {
                                 map: 'main.model.name',
                                 width: 25
                             },
-                            'SKU': {
+                            'Запрос': {
                                 map: 'searchString'
                             },
                             'Наша цена': {

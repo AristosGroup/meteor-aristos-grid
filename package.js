@@ -8,7 +8,7 @@ Package.describe({
 
 Package.on_use(function (api) {
     api.use(['iron-router'], 'server');
-    api.use(['underscore', 'deps', 'aristos-base'], ['client', 'server']);
+    api.use(['underscore', 'moment', 'deps', 'aristos-base'], ['client', 'server']);
     api.use(['templating', 'handlebars', 'session'], 'client');
     api.use(['jqwidgets'], 'client');
 

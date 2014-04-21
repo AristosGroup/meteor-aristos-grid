@@ -19,12 +19,14 @@ Router.map(function () {
 
                 var limit = parseInt(this.params.pagesize) || 1000,
                     page = parseInt(this.params.pagenum) || 0,
-                    start = parseInt(page * limit),
+                    start = parseInt(page * limit);
                     finish = start + limit;
-                console.log('limit:',limit,  ' page:', page, ' start:', start,  ' finish:', finish);
+                //console.log('limit:',limit,  ' page:', page, ' start:', start,  ' finish:', finish);
                 var filter = {},
                     options = {
-                        reactive: false
+                        reactive: false,
+                        limit: limit,
+                        skip: start
                     };
                 if(this.params.limit) {
                     limit = parseInt(this.params.limit);
@@ -127,11 +129,11 @@ Router.map(function () {
                 }
 
                 console.log('Filter: ', filter, '\nOptions:', options);
-                var query = collection.find(filter, options).fetch();
+                var query = collection.find(filter, options);
                 var responseData = {
                     'limit': limit,
-                    'count': query.length,
-                    'rows': query.slice(start, finish)
+                    'count': query.count(),
+                    'rows': query.fetch()
                 };
                 this.response.end(JSON.stringify(responseData));
             } catch(e) {

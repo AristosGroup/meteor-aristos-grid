@@ -11,6 +11,8 @@ Router.map(function () {
             try {
                 var self = this;
                 this.response.writeHead(200, {'Content-Type': 'application/json; charset=utf-8'});
+                //console.dir(this.response.connection);
+                this.response.connection.setTimeout(0);
                 console.log('Request export json. Params: ', this.params);
 
                 //Попытка распознания коллекции

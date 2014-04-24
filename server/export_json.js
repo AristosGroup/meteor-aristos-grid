@@ -10,13 +10,12 @@ Router.map(function () {
 
             try {
                 var self = this;
-                this.response.useChunkedEncodingByDefault = false;
-                this.response.httpVersion = '1.0';
-                this.response.httpVersionMinor = 0;
+                //this.response.useChunkedEncodingByDefault = false;
+                //this.response.httpVersion = '1.0';
+                //this.response.httpVersionMinor = 0;
                 this.response.writeHead(200, {
                     'Content-Type': 'application/json; charset=utf-8'
                 });
-                //this.response.writeHead(200, {'Content-Length': 'application/json; charset=utf-8'});
                 //console.dir(this.response.connection);
                 this.response.connection.setTimeout(0);
                 console.log('Request export json. Params: ', this.params);
@@ -114,22 +113,6 @@ Router.map(function () {
                     try {
                         this.params.filters = this.params.filters.replace('+', ' ');
                         var mainFilter = AristosUtils.JSON.parse(this.params.filters);
-                        /*if(mainFilter.hasOwnProperty('$and') && typeof mainFilter['$and'] == 'object') {
-                         _.each(mainFilter['$and'], function(val, key) {
-                         console.log('val:', val);
-                         if(typeof val == 'object') {
-                         _.each(val, function(valValue, valKey) {
-                         if(typeof valValue == 'string' && valValue.indexOf('/') === 0) {
-                         val[valKey] = RegExp.apply(undefined, /^\/(.*)\/(.*)/.exec(valValue).slice(1));
-                         console.log('found regexp: ', valValue, val[valKey]);
-                         }
-                         });
-                         console.log('val:', val);
-                         mainFilter['$and'][key] = val;
-                         }
-                         });
-                         }*/
-                        //console.log('Added main filter: ', this.params.filters, mainFilter);
                         filter = _.extend(filter, mainFilter);
                     } catch(e) {
                         console.log('Ошибка обработки фильтра: ', e);
@@ -143,7 +126,10 @@ Router.map(function () {
                     'count': query.count(),
                     'rows': query.fetch()
                 };
-                this.response.end(JSON.stringify(responseData));
+                var a = JSON.stringify(responseData);
+                this.response.write(a);
+                console.log('finish stream');
+                this.response.end('');
             } catch(e) {
                 responseData = {
                     error: e.message

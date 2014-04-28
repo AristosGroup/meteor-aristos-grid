@@ -14,6 +14,7 @@ Router.map(function () {
                 if(!this.params.collection) throw new Error('Не передана коллекция');
                 var collectionName = this.params.collection,
                     collection = AristosUtils.getCollection(collectionName);
+                var rules = checkAccessForCollection(collectionName);
 
                 var task = this.params.task;
 

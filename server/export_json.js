@@ -22,43 +22,9 @@ Router.map(function () {
 
                 //Попытка распознания коллекции
                 if(!this.params.collection) throw new Error('Не передана коллекция');
-                var collection = AristosUtils.getCollection(this.params.collection);
-
-
-                /* ACCESS BLOCK */
-                //Требуеся указать сабмодули, которые имеют доступ к данной коллекции
-                var moduleAccess = [];
-                switch (this.params.collection) {
-                    case 'YandexCollection':
-                        moduleAccess.push({
-                            module: 'yandex',
-                            submodule: 'yandex_models'
-                        });
-                        moduleAccess.push({
-                            module: 'yandex',
-                            submodule: 'yandex_api'
-                        });
-                        break;
-                    case 'ShopUsers':
-                        moduleAccess.push({
-                            module: 'shop',
-                            submodule: 'shop_users'
-                        });
-                        break;
-                    default: throw new Error('Коллекция ' + this.params.collection + ' недоступна для вывода');
-                }
-                var hasAccess = false;
-                for(var i in moduleAccess) {
-                    if(moduleAccess.hasOwnProperty(i)) {
-                        var mod = moduleAccess[i];
-                        if(App.modules[mod.module].checkAccess(mod.submodule, Aristos.currentUserId)) {
-                            hasAccess = true;
-                            break;
-                        }
-                    }
-                }
-                if(!hasAccess) throw new Error('У вас нет доступа к данным ' + this.params.collection + '');
-                /* END OF ACCESS BLOCK */
+                var collectionName = this.params.collection,
+                    collection = AristosUtils.getCollection(collectionName);
+                var rules = checkAccessForCollection(collectionName);
 
 
                 var limit = parseInt(this.params.pagesize) || 1000,

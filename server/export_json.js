@@ -57,9 +57,13 @@ Router.map(function () {
                 if(this.params.filterscount && parseInt(this.params.filterscount) > 0) {
                     for(var i = 0; i < this.params.filterscount; i++) {
                         var filterValue = this.params.hasOwnProperty('filtervalue'+i) ? this.params['filtervalue' + i] : '';
+                        filterValue = filterValue.replace(/\+/g, ' ');
                         if(!isNaN(filterValue)) {
                             filterValue = parseFloat(filterValue);
+                        } else if(moment(new Date(filterValue)).isValid()) {
+                            filterValue = moment(new Date(filterValue)).toDate();
                         }
+
                         var filterCondition = this.params.hasOwnProperty('filtercondition'+i) ? this.params['filtercondition' + i] : 'CONTAINS';
                         var filterDataField = this.params.hasOwnProperty('filterdatafield'+i) ? this.params['filterdatafield' + i] : null;
                         filterDataField = filterDataField.replace(new RegExp('>', 'g'), '.');
@@ -91,7 +95,11 @@ Router.map(function () {
                         }
                         console.log('Add Rule for '+filterDataField+': ', filterRule);
                         if(filter.hasOwnProperty(filterDataField)) {
-                            if(typeof filter[filterDataField] == 'object' &&  !(filter[filterDataField] instanceof RegExp)) {
+                            if(typeof filter[filterDataField] == 'object' && filter[filterDataField].hasOwnProperty('$in')) {
+                                //Добавляем в свойство $in
+                                filter[filterDataField]['$in'].push(filterRule);
+                            } else if(typeof filter[filterDataField] == 'object' && !(filter[filterDataField] instanceof RegExp)) {
+                                //Фильтр является объектом, расширяем его
                                 var extend = _.extend(filter[filterDataField], filterRule);
                                 console.log('Extending filter filter['+filterDataField+']. exitst:', filter[filterDataField],
                                     ' new:', filterRule, ' extended:', extend);
@@ -123,11 +131,21 @@ Router.map(function () {
                 }
 
                 console.log('Filter: ', filter, '\nOptions:', options);
+
+                var distincts = {};
+                var distinctsParams = this.params.distincts.split(',');
+                if(distinctsParams.length) {
+                    _.each(distinctsParams, function(val) {
+                        distincts[val] = collection.distinct(val, filter);
+                    });
+                }
+
                 var query = collection.find(filter, options);
                 var responseData = {
                     'limit': limit,
                     'count': query.count(),
-                    'rows': query.fetch()
+                    'rows': query.fetch(),
+                    'distincts': distincts
                 };
                 var a = JSON.stringify(responseData);
                 this.response.write(a);

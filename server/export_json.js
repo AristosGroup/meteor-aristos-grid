@@ -133,7 +133,7 @@ Router.map(function () {
                 console.log('Filter: ', filter, '\nOptions:', options);
 
                 var distincts = {};
-                var distinctsParams = this.params.distincts.split(',');
+                var distinctsParams = (this.params.distincts ? this.params.distincts.split(',') : []);
                 if(distinctsParams.length) {
                     _.each(distinctsParams, function(val) {
                         distincts[val] = collection.distinct(val, filter);
@@ -152,7 +152,8 @@ Router.map(function () {
                 this.response.end('');
             } catch(e) {
                 responseData = {
-                    error: e.message
+                    error: e.message,
+                    stack: e.stack
                 }
                 console.log(e);
                 this.response.end(JSON.stringify(responseData));

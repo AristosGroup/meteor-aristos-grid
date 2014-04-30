@@ -12,7 +12,7 @@ Package.on_use(function (api) {
     api.use(['templating', 'handlebars', 'session'], 'client');
     api.use(['jqwidgets'], 'client');
 
-    api.add_files(['server/access_policy.js', 'server/export_xls.js', 'server/export_json.js'], 'server');
+    api.add_files(['server/grid_request_function.js', 'server/export_xls.js', 'server/export_json.js'], 'server');
     api.add_files(['lib/grid.js']);
     api.add_files(['client/grid.html', 'client/states.html', 'client/states.js'], 'client');
 

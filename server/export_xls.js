@@ -129,7 +129,7 @@ Router.map(function () {
                     return row;
                 };
 
-                var colsConfig = null;
+                var colsConfig = {};
                 switch (task) {
                     case 'offers':
                         colsConfig = {
@@ -184,12 +184,40 @@ Router.map(function () {
                         break;
                     default:
                         //TODO Реализовать автоматический разбор коллекции
-                        throw new Error('Необходимо указать задачу. Авто-разбор модели не реализован');
+                        var colsParams = this.request.body.columns || this.params.columns;
+                        if(colsParams) {
+                            try {
+                                colsParams = JSON.parse(colsParams);
+                                _.each(colsParams, function(colOpts, colMap) {
+                                    var type;
+                                    switch(colOpts.type) {
+                                        case 'int':
+                                        case 'float':
+                                        case 'number':
+                                            type = 'number';
+                                            break;
+                                        default:
+                                            type = 'string';
+                                    }
+                                    colsConfig[colOpts.text] = {
+                                        map: colMap,
+                                        type: type,
+                                        //width: parseInt(colOpts.width / 10)
+                                    }
+                                });
+                            } catch(e) {
+                                throw new Error('Конфигурация столбцов некорректная. ' + e.message);
+                            }
+                        } else {
+                            throw new Error('Необходимо указать задачу. Авто-разбор модели не реализован');
+                        }
+
                         //По-умолчанию самостоятельно определяем конфигурацию полей для экспорта
-                        data.forEach(function(row){
+                        /*data.forEach(function(row){
                             //Разбор объекта
                             _.each(row, function(){});
                         });
+                        */
                 }
 
 
@@ -253,7 +281,13 @@ Router.map(function () {
 
             } catch(e) {
                 console.log(e.stack);
-                this.response.end('<script>alert("Ошибка выполнения: '+e.message+'");</script>');
+                this.response.end('<script>' +
+                    'if(typeof parent.aEvent == "object") { ' +
+                    '   parent.aEvent.error("'+e.message+'");' +
+                    '} else {' +
+                    '   alert("Ошибка выполнения: '+e.message+'");' +
+                    '}' +
+                '</script>');
             }
         }
     });

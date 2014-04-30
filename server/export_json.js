@@ -29,7 +29,7 @@ Router.map(function () {
 
                 var limit = parseInt(this.params.pagesize) || 1000,
                     page = parseInt(this.params.pagenum) || 0,
-                    start = parseInt(page * limit);
+                    start = parseInt(page * limit),
                     finish = start + limit;
                 //console.log('limit:',limit,  ' page:', page, ' start:', start,  ' finish:', finish);
                 var filter = {},

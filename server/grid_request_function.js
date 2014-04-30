@@ -33,3 +33,7 @@ checkAccessForCollection = function(collectionName) {
     if(!hasAccess) throw new Error('У вас нет доступа к данным ' + collectionName + '');
     return false;
 }
+
+parseFilters = function(params, limit) {
+    limit = 1;
+}

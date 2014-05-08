@@ -16,37 +16,19 @@ Router.map(function () {
                     collection = AristosUtils.getCollection(collectionName);
                 var rules = checkAccessForCollection(collectionName);
 
+                var settings = {};
+                var params = _.extend(this.params, this.request.body);
+                parseFilters(params, settings);
+                console.log('Parsed Settings', settings);
+
                 var task = this.params.task;
 
                 var xlsx = Meteor.require('excel-export');
 
-                //Применяем основной фильтр
-                var filters = this.request.body.filters || this.params.filters;
-                if(filters) {
-                    try {
-                        filters = AristosUtils.JSON.parse(filters);
-                    } catch(e) {
-                        console.log('Ошибка обработки фильтра: ', e);
-                        filters = {};
-                    }
-                } else {
-                    filters = {};
-                }
-                var options = this.request.body.options || this.params.options;
-                if(options) {
-                    try {
-                        options = JSON.parse(options);
-                    } catch(e) {
-                        console.log('Ошибка обработки фильтра: ', e);
-                        options = {};
-                    }
-                } else {
-                    options = {};
-                }
+                console.log('Экспортируем коллекцию ' + collectionName + ' с фильтром ',
+                    settings.filter,  ' и параметрами ', settings.options);
 
-                console.log('Экспортируем коллекцию ' + collectionName + ' с фильтром ', filters,  ' и параметрами ', options);
-
-                var data = collection.find(filters, options);
+                var data = collection.find(settings.filter, settings.options);
                 console.log('Data count: ', data.count());
 
                 //Массив с хуками - доп функциями для обработки данных

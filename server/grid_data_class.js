@@ -1,51 +1,82 @@
-checkAccessForCollection = function(collectionName) {
-    //Требуеся указать сабмодули, которые имеют доступ к данной коллекции
-    var moduleAccess = [];
-    switch (collectionName) {
-        case 'YandexCollection':
-            moduleAccess.push({
-                module: 'yandex',
-                submodule: 'yandex_models'
-            });
-            moduleAccess.push({
-                module: 'yandex',
-                submodule: 'yandex_api'
-            });
-            break;
-        case 'ShopUsers':
-            moduleAccess.push({
-                module: 'shop',
-                submodule: 'shop_users'
-            });
-            break
-        case 'ShopOrders':
-            moduleAccess.push({
-                module: 'shop',
-                submodule: 'shop_orders'
-            });
-            break;
-        default: throw new Error('Коллекция ' + collectionName + ' недоступна для вывода');
+/**
+ * Вспомогательный класс для работы и экспорта данных грида
+ * @constructor
+ */
+function GridDataClass() {
+    this.accessStack = {};
+    this.exportTasks = {};
+}
+
+/**
+ * Добавяет разрешение на доступ к коллекции
+ * @param collection
+ * @param rule - Объект с правилами. Должен содержать обязательные поля module и submodule
+ * Можно передать неограниченное количество правил в качестве дополнительных параметров
+ */
+GridDataClass.prototype.addToAccessStack = function(collection, rule) {
+    if(!this.accessStack.hasOwnProperty(collection)) this.accessStack[collection] = [];
+    for(var i = 1; i < arguments.length; i++) {
+        this.accessStack[collection].push(arguments[i]);
     }
-    var hasAccess = false;
-    for(var i in moduleAccess) {
-        if(moduleAccess.hasOwnProperty(i)) {
-            var mod = moduleAccess[i];
-            if(App.modules[mod.module].checkAccess(mod.submodule, Aristos.currentUserId)) {
-                hasAccess = true;
-                return mod;
+};
+
+/**
+ * Добавление задачи для экспорта данных в Excel
+ * @param taskName
+ * Название задания
+ * @param colsConfig
+ * Конфигурация колонок
+ * @param hooksArray
+ * Функция или массив с функциями для модификации экспортируемых данных
+ * @param options
+ * Различные дополнительные опции
+ */
+GridDataClass.prototype.addExportTask = function(taskName, colsConfig, hooksArray, options) {
+    if(!taskName) throw new Error('Не передано название задания для экспорта');
+    if(!colsConfig) throw new Error('Не передана конфигурация столбцов для задания ' + taskName);
+    if(!hooksArray) hooksArray = [];
+    if(typeof hooksArray == 'function') hooksArray = [ hooksArray ];
+    if(!options) options = {};
+    if(this.exportTasks.hasOwnProperty(taskName)) console.warn('Задание для экспорта ' + taskName + ' уже существует. Будет произведена перезапись');
+    this.exportTasks[taskName] = {
+        cols: colsConfig,
+        hooks: hooksArray,
+        options: options
+    };
+}
+
+/**
+ * Проверяет наличие доступа к коллекции
+ * @param collection
+ * @returns {*}
+ */
+GridDataClass.prototype.checkAccessForCollection = function(collection) {
+    //Требуеся указать сабмодули, которые имеют доступ к данной коллекции
+    if(this.accessStack.hasOwnProperty(collection)) {
+        var hasAccess = false,
+            moduleAccess = this.accessStack[collection];
+        for(var i in moduleAccess) {
+            if(moduleAccess.hasOwnProperty(i)) {
+                var mod = moduleAccess[i];
+                if(App.modules[mod.module].checkAccess(mod.submodule, Aristos.currentUserId)) {
+                    hasAccess = true;
+                    return mod;
+                }
             }
         }
+        if(!hasAccess) throw new Error('У вас нет доступа к данным ' + collection + '');
+    } else {
+        throw new Error('Коллекция ' + collection + ' недоступна для вывода');
     }
-    if(!hasAccess) throw new Error('У вас нет доступа к данным ' + collectionName + '');
     return false;
-}
+};
 
 /**
  * Парсинг входящих параметров и формирование фильтров
  * @param params
  * @param settings настройки
  */
-parseFilters = function(params, settings) {
+GridDataClass.prototype.parseFilters = function(params, settings) {
     this.params = params;
 
     var limit = parseInt(this.params.pagesize) || parseInt(this.params.limit) || 1000,
@@ -150,3 +181,5 @@ parseFilters = function(params, settings) {
     });
     return settings;
 };
+
+GridData = new GridDataClass();

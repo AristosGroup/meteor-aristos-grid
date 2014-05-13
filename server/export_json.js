@@ -24,10 +24,10 @@ Router.map(function () {
                 if(!this.params.collection) throw new Error('Не передана коллекция');
                 var collectionName = this.params.collection,
                     collection = AristosUtils.getCollection(collectionName);
-                var rules = checkAccessForCollection(collectionName);
+                var rules = GridData.checkAccessForCollection(collectionName);
 
                 var settings = {};
-                parseFilters(this.params, settings);
+                GridData.parseFilters(this.params, settings);
                 console.log('Parsed Settings', settings);
 
                 console.log('Filter: ', settings.filter, '\nOptions:', settings.options);

@@ -14,11 +14,11 @@ Router.map(function () {
                 if(!this.params.collection) throw new Error('Не передана коллекция');
                 var collectionName = this.params.collection,
                     collection = AristosUtils.getCollection(collectionName);
-                var rules = checkAccessForCollection(collectionName);
+                var rules = GridData.checkAccessForCollection(collectionName);
 
                 var settings = {};
                 var params = _.extend(this.params, this.request.body);
-                parseFilters(params, settings);
+                GridData.parseFilters(params, settings);
                 console.log('Parsed Settings', settings);
 
                 var task = this.params.task;
@@ -33,175 +33,52 @@ Router.map(function () {
 
                 //Массив с хуками - доп функциями для обработки данных
                 var parseHooks = [];
-
-                /**
-                 * Парсер характеристик моделей в Яндекс
-                 */
-                var hookYandexModelParams = function(dataRow, row, rows, colsConfig, cols) {
-                    if(dataRow.details) {
-                        dataRow.details.forEach(function(detailsGroup, detailsGroupKey) {
-                            if(detailsGroup.params) {
-                                detailsGroup.params.forEach(function(details, detailsKey){
-                                    if(!colsConfig.hasOwnProperty(details.name)) {
-                                        colsConfig[details.name] = {
-                                            map: 'details['+detailsGroupKey+'].params['+detailsKey+'].value',
-                                            paramNameMap: 'details['+detailsGroupKey+'].params['+detailsKey+'].name'
-                                        };
-                                        cols.push(_.defaults(colsConfig[details.name], {
-                                            caption: details.name,
-                                            type: 'string'
-                                        }));
-                                        row.push(details.value);
-                                    }
-                                });
-                            }
-                        });
-                    }
-                    return row;
-                };
-
-                /**
-                 * Парсер товарных предложений Яндекс
-                 */
-                var offersColsSettedUp = false;
-                var hookYandexOffers = function(dataRow, row, rows, colsConfig, cols) {
-                    var originRow = _.clone(row);
-                    if(typeof dataRow.offers != 'undefined' && dataRow.offers.length) {
-                        if(!offersColsSettedUp) {
-                            cols.push({
-                                caption: 'Цена магазина',
-                                type: 'number'
-                            });
-                            cols.push({
-                                caption: 'Название магазина',
-                                type: 'string'
-                            });
-                            cols.push({
-                                caption: 'Рейтинг магазина',
-                                type: 'number'
-                            });
-                            cols.push({
-                                caption: 'Отзывов',
-                                type: 'number'
-                            });
-                            cols.push({
-                                caption: 'Стоимость доставки',
-                                type: 'number'
-                            });
-                            offersColsSettedUp = true;
-                        }
-                        for(var i = 0; i < dataRow.offers.length; i++) {
-                            var offer = dataRow.offers[i].offer;
-                            if(offer) {
-                                console.log('Generate new row: ', '['+i+'/'+dataRow.offers.length+']');
-                                row = _.clone(originRow);
-                                row.push(AristosUtils.getValueForPosition('price.value', offer, ''));
-                                row.push(AristosUtils.getValueForPosition('shopInfo.name', offer, ''));
-                                row.push(AristosUtils.getValueForPosition('shopInfo.rating', offer, 0));
-                                row.push(AristosUtils.getValueForPosition('shopInfo.gradeTotal', offer, 0));
-                                row.push(AristosUtils.getValueForPosition('delivery.price.value', offer, 0));
-                                console.log(row);
-                                if(!(i + 1 == dataRow.offers.length)) {
-                                    console.log('Row pushed');
-                                    rows.push(row);
-                                }
-                            }
-                        }
-                    }
-                    return row;
-                };
-
                 var colsConfig = {};
-                switch (task) {
-                    case 'offers':
-                        colsConfig = {
-                            'Название': {
-                                map: 'main.model.name',
-                                width: 25
-                            },
-                            'Запрос': {
-                                map: 'searchString'
-                            },
-                            'Наша цена': {
-                                map: 'phillips_price',
-                                type: 'number'
-                            },
-                            'Средняя цена': {
-                                map: 'main.model.prices.avg',
-                                type: 'number'
-                            }
-                        };
-                        parseHooks.push(hookYandexOffers);
-                        break;
-                    case 'models':
-                        colsConfig = {
-                            'ID': {
-                                map: 'modelId',
-                                type: 'number'
-                            },
-                            'Категория': {
-                                map: 'category.name',
-                                width: 30,
-                                beforeCellWrite:function(row, cellData){
-                                    return cellData.toUpperCase();
-                                }
-                            },
-                            'Название': {
-                                map: 'main.model.name',
-                                width: 25
-                            },
-                            'Производитель': {
-                                map: 'main.model.vendor'
-                            },
-                            'Рейтинг': {
-                                map: 'main.model.rating',
-                                type: 'number'
-                            },
-                            'Предложений': {
-                                map: 'main.model.offersCount',
-                                type: 'nubmer'
-                            }
-                        };
-                        parseHooks.push(hookYandexModelParams);
-                        break;
-                    default:
-                        //TODO Реализовать автоматический разбор коллекции
-                        var colsParams = this.request.body.columns || this.params.columns;
-                        if(colsParams) {
-                            try {
-                                colsParams = JSON.parse(colsParams);
-                                _.each(colsParams, function(colOpts, colMap) {
-                                    var type;
-                                    switch(colOpts.type) {
-                                        case 'int':
-                                        case 'float':
-                                        case 'number':
-                                            type = 'number';
-                                            break;
-                                        default:
-                                            type = 'string';
-                                    }
-                                    colsConfig[colOpts.text] = {
-                                        map: colMap,
-                                        type: type,
-                                        //width: parseInt(colOpts.width / 10)
-                                    }
-                                });
-                            } catch(e) {
-                                throw new Error('Конфигурация столбцов некорректная. ' + e.message);
-                            }
-                        } else {
-                            throw new Error('Необходимо указать задачу. Авто-разбор модели не реализован');
+                var fileName = collectionName.toLowerCase();
+
+                if(task) {
+                    if(GridData.exportTasks.hasOwnProperty(task)) {
+                        //Получаем данные задания
+                        var taskData = GridData.exportTasks[task];
+                        colsConfig = taskData.cols;
+                        if(taskData.hooks.length) {
+                            taskData.hooks.forEach(function(hook){
+                                parseHooks.push(hook);
+                            });
                         }
-
-                        //По-умолчанию самостоятельно определяем конфигурацию полей для экспорта
-                        /*data.forEach(function(row){
-                            //Разбор объекта
-                            _.each(row, function(){});
-                        });
-                        */
+                        fileName = task.toLowerCase();
+                    } else {
+                        throw new Error('Задания ' + task + ' для коллекции ' + collectionName + ' не существует');
+                    }
+                } else {
+                    //По-умолчанию экспортируем файл с общими настройками (если предоставлены данные о колонках
+                    var colsParams = this.request.body.columns || this.params.columns;
+                    if(colsParams) {
+                        try {
+                            colsParams = JSON.parse(colsParams);
+                            _.each(colsParams, function(colOpts, colMap) {
+                                var type;
+                                switch(colOpts.type) {
+                                    case 'int':
+                                    case 'float':
+                                    case 'number':
+                                        type = 'number';
+                                        break;
+                                    default:
+                                        type = 'string';
+                                }
+                                colsConfig[colOpts.text] = {
+                                    map: colMap,
+                                    type: type
+                                }
+                            });
+                        } catch(e) {
+                            throw new Error('Конфигурация столбцов некорректная. ' + e.message);
+                        }
+                    } else {
+                        throw new Error('Необходимо указать задачу. Авто-разбор модели не реализован');
+                    }
                 }
-
 
                 var cols = [],
                     rows = [];
@@ -257,7 +134,7 @@ Router.map(function () {
 
                 this.response.writeHead(200, {
                     'Content-Type': 'application/vnd.openxmlformats',
-                    'Content-Disposition': 'attachment; filename="export_' + collectionName.toLowerCase() + '.xlsx"'
+                    'Content-Disposition': 'attachment; filename="export_' + fileName + '.xlsx"'
                 });
                 this.response.end(result, 'binary');
 

@@ -19,6 +19,7 @@ Router.map(function () {
                 var settings = {};
                 var params = _.extend(this.params, this.request.body);
                 GridData.parseFilters(params, settings);
+                GridData.check = false;
                 console.log('Parsed Settings', settings);
 
                 var task = this.params.task;

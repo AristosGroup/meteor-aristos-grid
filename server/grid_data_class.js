@@ -5,6 +5,7 @@
 function GridDataClass() {
     this.accessStack = {};
     this.exportTasks = {};
+    this.check = false; //Используется для внутренних проверок
 }
 
 /**

@@ -105,6 +105,7 @@ GridDataClass.prototype.parseFilters = function(params, settings) {
         for(var i = 0; i < this.params.filterscount; i++) {
             var filterValue = this.params.hasOwnProperty('filtervalue'+i) ? this.params['filtervalue' + i] : '';
             filterValue = filterValue.replace(/\+/g, ' ');
+            filterValue = filterValue.replace(/\r\n/g, '\n');
             if(!isNaN(filterValue)) {
                 filterValue = parseFloat(filterValue);
             } else if(moment(new Date(filterValue)).isValid()) {

@@ -18,6 +18,7 @@ Router.map(function () {
 
                 var settings = {};
                 var params = _.extend(this.params, this.request.body);
+                params.limit = 1000000;
                 GridData.parseFilters(params, settings);
                 GridData.check = false;
                 console.log('Parsed Settings', settings);

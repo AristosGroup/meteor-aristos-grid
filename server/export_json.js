@@ -32,19 +32,39 @@ Router.map(function () {
 
                 console.log('Filter: ', settings.filter, '\nOptions:', settings.options);
 
+
+                var query = collection.find(settings.filter, settings.options),
+                    rows = query.fetch();
+
                 var distincts = {};
                 var distinctsParams = (this.params.distincts ? this.params.distincts.split(',') : []);
                 if(distinctsParams.length) {
                     _.each(distinctsParams, function(val) {
-                        distincts[val] = collection.distinct(val, settings.filter);
+                        if(settings.filter.hasOwnProperty(val)) {
+                            distincts[val] = collection.distinct(val);
+                        } else {
+                            distincts[val] = collection.distinct(val, settings.filter);
+                            /*
+                            var unique = {};
+                            distincts[val] = [];
+                            for(var i in rows) {
+                                var rowData = rows[i];
+                                if(rowData.hasOwnProperty(val)) {
+                                    if(!unique.hasOwnProperty(rowData[val])) {
+                                        distincts[val].push(rowData[val]);
+                                        unique[rowData[val]] = 1;
+                                    }
+                                }
+                            }
+                            */
+                        }
                     });
                 }
 
-                var query = collection.find(settings.filter, settings.options);
                 var responseData = {
                     'limit': settings.limit,
                     'count': query.count(),
-                    'rows': query.fetch(),
+                    'rows': rows,
                     'distincts': distincts
                 };
                 var a = JSON.stringify(responseData);
